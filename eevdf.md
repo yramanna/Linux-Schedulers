@@ -235,7 +235,7 @@ Decision 3 (t=6ms):
 * Pick B
 * But D wakes at t=8ms...
 
-At t=8ms: D Wakes
+At t=8ms: D Wakes. 
 B has run 2ms wall-clock: vruntime_B = 2×(1024/820) = 2.498
 
 Wakeup adjustment:
