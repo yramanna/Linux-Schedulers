@@ -1,35 +1,35 @@
 # Linux CPU Scheduling: From CFS to EEVDF
 
-This repository contains the source material and generated blog pages for a technical article about Linux fair scheduling.
+This repository holds the writing and generated pages for a blog project on Linux fair scheduling.
 
-## What Is Here
+The main goal is to explain the shift from classic CFS to EEVDF in a way that is accurate, readable and useful to someone who wants to understand what the kernel is actually doing.
+
+## What's in the repo
 
 - `MASTER_CONTENT.md`
-  - The main long-form article source.
-  - This is the canonical prose document for the project.
-  - It combines the CFS and EEVDF material into one structured narrative with citations and qualifications.
+  - This is the main article source.
+  - It is the best place to read the full argument in one document.
+  - The CFS and EEVDF sections, citations and scope notes all live here.
 - `site/output/`
-  - The generated static blog pages.
-  - Start with `site/output/index.html` for the homepage.
-  - The focused pages (`cfs.html`, `eevdf.html`, `math.html`, `references.html`, `simulator.html`) are built from the same source material.
+  - This contains the generated static blog.
+  - Start with `site/output/index.html`.
+  - The focused pages (`cfs.html`, `eevdf.html`, `math.html`, `references.html`, `simulator.html`) are all built from the same source material.
 
-## Intent
+## What the project is trying to do
 
-The goal of the project is to explain Linux CPU scheduling in a way that is both technically accurate and readable:
+The project tries to do a few things at once:
 
 - explain historical CFS in terms of weighted virtual runtime and wakeup behavior
 - explain current EEVDF in terms of lag, eligibility and virtual deadlines
-- distinguish documented guarantees from teaching intuition
-- provide both a long-form article and a blog-style presentation with diagrams and a simulator
+- separate what the kernel documentation actually supports from what is just teaching intuition
+- provide both a long-form article and a more visual blog presentation with diagrams and a simulator
 
-## Recommended Entry Points
+## Where to start
 
-- For the main article source:
-  - `MASTER_CONTENT.md`
-- For the generated blog:
-  - `site/output/index.html`
+- If you want the writing source, start with `MASTER_CONTENT.md`.
+- If you want the generated blog, start with `site/output/index.html`.
 
 ## Notes
 
-- `MASTER_CONTENT.md` is the authoritative writing source.
-- The HTML in `site/output/` is the publication-facing output built from that source.
+- `MASTER_CONTENT.md` is the authoritative source for the prose.
+- The HTML in `site/output/` is the rendered blog output built from it.
