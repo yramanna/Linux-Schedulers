@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>References, Bibliography and Scope Limits | Linux CPU Scheduling: From CFS to EEVDF</title>
+<meta name="description" content="An editorial guide to Linux CPU scheduling, centered on CFS, EEVDF, formal analysis, diagrams and an interactive scheduler simulator." />
+<style>
+:root {
+  --bg: #f4efe7;
+  --bg-alt: #efe7db;
+  --paper: #fffdf8;
+  --paper-strong: #fffaf3;
+  --ink: #15171b;
+  --muted: #5e6470;
+  --line: rgba(33, 44, 61, 0.12);
+  --line-strong: rgba(33, 44, 61, 0.22);
+  --cfs: #2a5b7a;
+  --cfs-soft: rgba(42, 91, 122, 0.1);
+  --eevdf: #b5653f;
+  --eevdf-soft: rgba(181, 101, 63, 0.11);
+  --math: #4f6b46;
+  --math-soft: rgba(79, 107, 70, 0.1);
+  --signal: #ca4f38;
+  --signal-soft: rgba(202, 79, 56, 0.12);
+  --shadow: 0 28px 90px rgba(33, 24, 11, 0.08);
+  --shadow-soft: 0 10px 30px rgba(33, 24, 11, 0.05);
+  --radius-xl: 32px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --maxw: 1240px;
+  --measure: 70ch;
+  --display: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
+  --body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --serif: "Source Serif 4", Georgia, serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--body);
+  line-height: 1.72;
+  background:
+    radial-gradient(circle at top left, rgba(42, 91, 122, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(181, 101, 63, 0.08), transparent 24%),
+    linear-gradient(180deg, var(--bg-alt) 0px, var(--bg) 240px, #f7f3ec 100%);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, transparent 0, transparent 79px, rgba(27, 35, 48, 0.02) 80px),
+    repeating-linear-gradient(0deg, transparent 0, transparent 79px, rgba(27, 35, 48, 0.015) 80px);
+  opacity: 0.35;
+}
+a { color: inherit; }
+img, svg { display: block; max-width: 100%; }
+code, pre { font-family: var(--mono); }
+.wrapper {
+  width: min(var(--maxw), calc(100% - 32px));
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+.topbar {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  padding-top: 10px;
+}
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255,255,255,0.5);
+  background: rgba(255, 251, 244, 0.82);
+  backdrop-filter: blur(18px);
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--cfs), var(--eevdf));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.brand-text strong {
+  display: block;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.brand-text span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.topnav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.topnav a,
+.button,
+.card-link {
+  text-decoration: none;
+}
+.topnav a,
+.button {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  color: var(--ink);
+  background: rgba(255,255,255,0.72);
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+.topnav a:hover,
+.button:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+.button.primary {
+  background: linear-gradient(135deg, var(--signal), #dd7b44);
+  color: white;
+  border-color: transparent;
+}
+.hero,
+.page-header {
+  padding: 28px 0 20px;
+}
+.hero-shell,
+.surface,
+.card,
+.route-card,
+.diagram-card,
+.sim-card,
+.article-shell,
+.article-toc,
+.citation-strip,
+.footer-shell {
+  border: 1px solid rgba(33, 44, 61, 0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,250,242,0.97));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+.hero-shell,
+.page-header-shell {
+  padding: 34px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-shell::before,
+.page-header-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(42, 91, 122, 0.12), transparent 22%),
+    radial-gradient(circle at 88% 10%, rgba(181, 101, 63, 0.14), transparent 22%),
+    radial-gradient(circle at 52% 105%, rgba(79, 107, 70, 0.09), transparent 28%);
+  pointer-events: none;
+}
+.hero-grid,
+.split-grid,
+.sim-layout,
+.article-frame,
+.path-grid,
+.diagram-grid,
+.route-grid,
+.footer-grid,
+.citation-list,
+.glance-grid {
+  display: grid;
+  gap: 18px;
+}
+.hero-grid { grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.85fr); }
+.split-grid { grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr); align-items: stretch; }
+.path-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.diagram-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.route-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.citation-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.glance-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.footer-grid { grid-template-columns: 1.4fr 1fr 1fr; }
+.sim-layout { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
+.sim-main { min-width: 0; }
+.sim-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.section { padding: 10px 0 12px; }
+.surface { padding: 28px; margin: 18px 0; }
+.eyebrow,
+.overline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.74);
+  border: 1px solid rgba(33,44,61,0.1);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cfs);
+}
+.overline {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+h1, h2, h3, h4, h5 {
+  font-family: var(--display);
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+.hero h1,
+.page-header h1 {
+  margin: 18px 0 16px;
+  font-size: clamp(3rem, 5vw, 5.5rem);
+  line-height: 0.98;
+  max-width: 11ch;
+}
+.page-header h1 { max-width: none; }
+.page-header .lead { max-width: 78ch; }
+.lead {
+  font-size: 1.08rem;
+  color: var(--muted);
+  max-width: 64ch;
+  margin: 0 0 22px;
+}
+.hero-actions,
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hero-metrics,
+.metric-strip {
+  display: grid;
+  gap: 14px;
+}
+.hero-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 24px; }
+.metric-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; }
+.metric,
+.metric-pill,
+.path-card,
+.route-card,
+.diagram-card,
+.glance-card,
+.citation-item {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.74);
+  border: 1px solid rgba(33,44,61,0.08);
+}
+.metric strong,
+.metric-pill strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.compare-card {
+  padding: 22px;
+  border-radius: 28px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(33, 44, 61, 0.08);
+}
+.compare-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.compare-tag {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  padding: 7px 10px;
+  border-radius: 999px;
+}
+.compare-tag.cfs { background: var(--cfs-soft); color: var(--cfs); }
+.compare-tag.eevdf { background: var(--eevdf-soft); color: var(--eevdf); }
+.compare-card h2 { font-size: 1.55rem; margin: 0 0 6px; }
+.compare-card p,
+.surface p,
+.surface li,
+.article-intro p,
+.article-content p,
+.article-content li,
+.page-header p,
+.path-card p,
+.route-card p,
+.diagram-card p,
+.glance-card p,
+.footer-shell p,
+.footer-shell li {
+  color: var(--muted);
+}
+.mini-bars { margin-top: 18px; display: grid; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; font-size: 0.9rem; }
+.bar { height: 14px; border-radius: 999px; overflow: hidden; background: rgba(33,44,61,0.08); }
+.bar > span { display: block; height: 100%; border-radius: inherit; }
+.bar.cfs > span { background: linear-gradient(90deg, var(--cfs), #76a2bf); }
+.bar.eevdf > span { background: linear-gradient(90deg, var(--eevdf), #ec9d5d); }
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+.section-heading h2 {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 3.2rem);
+}
+.section-heading p { max-width: 52ch; margin: 0; }
+.path-card h3,
+.route-card h3,
+.diagram-card h3,
+.glance-card h3,
+.sim-card h3,
+.citation-strip h3,
+.footer-shell h3,
+.article-intro h2,
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4,
+.article-toc h3 {
+  margin-top: 0;
+}
+.diagram-card h3 {
+  font-size: 1.22rem;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+.path-card small,
+.route-card small,
+.diagram-card small,
+.glance-card small {
+  display: inline-block;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.diagram-card small {
+  color: var(--signal);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.path-card a,
+.route-card a,
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.path-card.cfs { box-shadow: inset 0 0 0 1px var(--cfs-soft); }
+.path-card.eevdf { box-shadow: inset 0 0 0 1px var(--eevdf-soft); }
+.path-card.math { box-shadow: inset 0 0 0 1px var(--math-soft); }
+.path-card.sim { box-shadow: inset 0 0 0 1px var(--signal-soft); }
+.route-card.route-cfs { background: linear-gradient(180deg, rgba(42,91,122,0.08), rgba(255,255,255,0.82)); }
+.route-card.route-eevdf { background: linear-gradient(180deg, rgba(181,101,63,0.08), rgba(255,255,255,0.82)); }
+.route-card.route-math { background: linear-gradient(180deg, rgba(79,107,70,0.08), rgba(255,255,255,0.82)); }
+.route-card.route-sim { background: linear-gradient(180deg, rgba(202,79,56,0.08), rgba(255,255,255,0.82)); }
+.split-bridge {
+  border-radius: 28px;
+  border: 1px dashed rgba(33,44,61,0.18);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,247,235,0.88));
+}
+.bridge-line {
+  width: 2px;
+  flex: 1;
+  min-height: 72px;
+  background: linear-gradient(180deg, var(--cfs), var(--eevdf));
+  border-radius: 999px;
+  margin: 8px 0;
+}
+.diagram-card svg {
+  width: 100%;
+  height: 300px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(21,23,27,0.03), rgba(21,23,27,0.00));
+  border: 1px solid rgba(33,44,61,0.08);
+  padding: 10px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.sim-card { padding: 18px; position: sticky; top: 92px; align-self: start; }
+.sim-panel {
+  background: rgba(255,255,255,0.84);
+  border: 1px solid rgba(33,44,61,0.08);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+  min-width: 0;
+}
+.stats-grid,
+.task-grid {
+  display: grid;
+  gap: 14px;
+}
+.stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 16px 0 18px;
+}
+.stat,
+.task-card {
+  background: rgba(255,255,255,0.74);
+  border: 1px solid rgba(33,44,61,0.08);
+  border-radius: 18px;
+  padding: 14px;
+}
+.stat strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+.stat span,
+.task-meta,
+.log-entry,
+.timeline-caption {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.task-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+.sim-panel.compact .stats-grid,
+.sim-panel.compact .task-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sim-panel.compact .task-card,
+.sim-panel.compact .stat {
+  padding: 12px;
+}
+.sim-panel.compact .task-card h4 {
+  font-size: 0.92rem;
+}
+.sim-panel.compact .lead {
+  font-size: 0.96rem;
+  margin-bottom: 14px;
+}
+.task-card.active {
+  box-shadow: inset 0 0 0 2px rgba(42,91,122,0.18);
+}
+.task-card.sleeping {
+  opacity: 0.78;
+}
+.task-card h4 {
+  margin: 0 0 6px;
+  font-size: 0.98rem;
+}
+.meter {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(33,44,61,0.08);
+  margin-top: 10px;
+}
+.meter > div {
+  height: 100%;
+  border-radius: inherit;
+}
+.timeline-wrap,
+.log {
+  background: rgba(255,255,255,0.68);
+  border: 1px solid rgba(33,44,61,0.08);
+  border-radius: 18px;
+  padding: 12px;
+}
+.timeline-wrap { margin-bottom: 12px; }
+.timeline {
+  overflow-x: auto;
+  width: 100%;
+  min-width: 0;
+}
+.timeline-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+.timeline-track {
+  position: relative;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(33,44,61,0.08);
+  overflow: hidden;
+}
+.seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid rgba(255,255,255,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.log {
+  display: grid;
+  gap: 8px;
+  max-height: 150px;
+  overflow: auto;
+}
+.log-entry .t {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.log-entry .kind {
+  display: inline-block;
+  min-width: 44px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: var(--signal);
+}
+.control-group { margin-bottom: 14px; }
+.control-group label {
+  display: block;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+select, button, input { font: inherit; }
+select, input[type="range"] { width: 100%; }
+select, button.sim-btn {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.9);
+  color: var(--ink);
+  padding: 10px 12px;
+}
+button.sim-btn.primary {
+  background: linear-gradient(135deg, var(--signal), #df8652);
+  color: #fff;
+  border-color: transparent;
+}
+.sim-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.timeline-stage, .explain-panel, .state-panel {
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(33,44,61,0.08);
+  border-radius: 22px;
+  padding: 18px;
+}
+.timeline-stage { margin-bottom: 18px; }
+.gantt {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 16px;
+}
+.slot {
+  min-height: 58px;
+  border-radius: 14px;
+  padding: 10px 8px;
+  font-size: 0.8rem;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.slot.cfs-worker { background: linear-gradient(135deg, #315f7b, #77a8c1); }
+.slot.cfs-burst { background: linear-gradient(135deg, #19465f, #2c7ea0); }
+.slot.eevdf-audio { background: linear-gradient(135deg, #b6643f, #eea56c); }
+.slot.eevdf-batch { background: linear-gradient(135deg, #7c6844, #ba9a66); }
+.slot.idle { background: linear-gradient(135deg, #7c8795, #a0a9b5); }
+.article-shell { margin-top: 20px; padding: 0; overflow: visible; }
+.article-frame { grid-template-columns: 280px minmax(0, 1fr); gap: 0; align-items: start; }
+.article-toc {
+  margin: 0;
+  border-radius: 0;
+  border: 0;
+  border-right: 1px solid rgba(33,44,61,0.08);
+  box-shadow: none;
+  padding: 22px 18px;
+  position: sticky;
+  top: 108px;
+  align-self: start;
+  max-height: calc(100vh - 128px);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(246,241,232,0.96), rgba(255,251,245,0.96));
+  display: flex;
+  flex-direction: column;
+}
+.article-toc h3 { margin-bottom: 8px; font-size: 1.02rem; }
+.article-toc p { margin: 0 0 10px; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
+.article-toc ul { list-style: none; padding: 0; margin: 0; }
+.article-toc #article-nav {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  padding-right: 6px;
+  padding-bottom: 8px;
+}
+.article-toc .toc-group {
+  border-radius: 12px;
+  padding: 4px;
+}
+.article-toc .toc-group-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.article-toc a {
+  text-decoration: none;
+  color: var(--muted);
+  display: block;
+  padding: 7px 10px;
+  border-radius: 10px;
+  transition: background 140ms ease, color 140ms ease;
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+.article-toc .toc-group-link {
+  font-weight: 600;
+  color: var(--ink);
+}
+.article-toc .toc-toggle {
+  border: 1px solid rgba(42,91,122,0.14);
+  background: rgba(42,91,122,0.08);
+  color: #2a5b7a;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
+}
+.article-toc .toc-toggle:hover {
+  background: rgba(42,91,122,0.14);
+  border-color: rgba(42,91,122,0.22);
+  color: var(--ink);
+}
+.article-toc .toc-group.open .toc-toggle {
+  background: rgba(42,91,122,0.18);
+  border-color: rgba(42,91,122,0.26);
+  color: var(--ink);
+  transform: rotate(90deg);
+}
+.article-toc .toc-subnav {
+  display: none;
+  margin-top: 6px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(33,44,61,0.08);
+}
+.article-toc .toc-group.open .toc-subnav {
+  display: grid;
+  gap: 5px;
+}
+.article-toc .toc-subnav a {
+  font-size: 0.86rem;
+  padding: 5px 8px;
+}
+.article-toc a:hover,
+.article-toc a.active {
+  background: rgba(42,91,122,0.08);
+  color: var(--ink);
+}
+.article-toc a.active {
+  box-shadow: inset 3px 0 0 #2a5b7a;
+}
+.article-main { padding: 28px; min-width: 0; }
+.article-intro {
+  padding: 24px;
+  border-bottom: 1px solid rgba(33,44,61,0.08);
+  background: linear-gradient(180deg, rgba(255,252,246,0.95), rgba(251,246,239,0.95));
+}
+.article-intro h2 { font-size: clamp(2rem, 3vw, 3rem); margin-bottom: 10px; }
+.article-content {
+  padding: 30px 24px 40px;
+  font-family: var(--serif);
+}
+.article-content > section.level1 > h1 { display: none; }
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+  color: var(--ink);
+  margin-top: 2.2em;
+  margin-bottom: 0.7em;
+  scroll-margin-top: 100px;
+}
+.article-content h2 { font-size: 2.1rem; }
+.article-content h3 { font-size: 1.45rem; }
+.article-content h4 { font-size: 1.15rem; }
+.article-content p,
+.article-content li {
+  font-size: 1.05rem;
+  max-width: var(--measure);
+}
+.article-content ul,
+.article-content ol { padding-left: 1.4rem; }
+.article-content section#references > ul > li,
+.article-content section#references-and-scope section#references > ul > li {
+  margin-bottom: 0.95rem;
+}
+.article-content section#references > ul > li:last-child,
+.article-content section#references-and-scope section#references > ul > li:last-child {
+  margin-bottom: 0;
+}
+.article-content pre {
+  background: #171b22;
+  color: #e9eff8;
+  padding: 18px;
+  border-radius: 18px;
+  overflow: auto;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+.article-content code {
+  background: rgba(33,44,61,0.08);
+  padding: 0.12em 0.34em;
+  border-radius: 0.4em;
+  font-size: 0.92em;
+}
+.article-content pre code { background: transparent; padding: 0; }
+.article-content blockquote {
+  margin: 1.6rem 0;
+  padding: 0.8rem 1rem 0.8rem 1.2rem;
+  border-left: 4px solid var(--eevdf);
+  background: rgba(181,101,63,0.06);
+  border-radius: 0 14px 14px 0;
+}
+.article-content table {
+  border-collapse: collapse;
+  width: min(100%, 860px);
+  margin: 1.2rem 0 1.6rem;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(33,44,61,0.08);
+}
+.article-content th,
+.article-content td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(33,44,61,0.08);
+}
+.article-content th { background: rgba(33,44,61,0.05); }
+.article-content a { color: var(--cfs); word-break: break-word; }
+.article-callout {
+  border-radius: 18px;
+  padding: 18px;
+  margin: 0 0 20px;
+  background: linear-gradient(180deg, rgba(42,91,122,0.09), rgba(255,255,255,0.86));
+  border: 1px solid rgba(42,91,122,0.12);
+}
+.citation-strip { padding: 22px; margin-top: 20px; }
+.citation-item strong { display: block; margin-bottom: 6px; }
+.footer-shell { padding: 26px; margin: 20px 0 36px; }
+.cite {
+  font-family: var(--body);
+  font-size: 0.75em;
+  color: var(--cfs);
+  background: rgba(42,91,122,0.08);
+  padding: 0.08em 0.38em;
+  border-radius: 999px;
+  margin-left: 0.15em;
+  white-space: nowrap;
+}
+.page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+@media (max-width: 1120px) {
+  .hero-grid,
+  .split-grid,
+  .sim-layout,
+  .article-frame,
+  .path-grid,
+  .diagram-grid,
+  .route-grid,
+  .glance-grid,
+  .citation-list,
+  .footer-grid,
+  .hero-metrics,
+  .metric-strip,
+  .stats-grid,
+  .task-grid {
+    grid-template-columns: 1fr;
+  }
+  .sim-compare-grid {
+    grid-template-columns: 1fr;
+  }
+  .article-toc {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(33,44,61,0.08);
+  }
+}
+@media (max-width: 820px) {
+  .topbar-inner { border-radius: 24px; align-items: flex-start; }
+  .topnav { justify-content: flex-start; }
+  .hero-shell,
+  .page-header-shell,
+  .surface,
+  .article-main,
+  .article-content,
+  .article-intro,
+  .footer-shell,
+  .citation-strip { padding-left: 20px; padding-right: 20px; }
+  .wrapper { width: min(var(--maxw), calc(100% - 20px)); }
+  .article-content p,
+  .article-content li { font-size: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+<div class="topbar"><div class="topbar-inner"><div class="brand"><div class="brand-mark" aria-hidden="true"></div><div class="brand-text"><strong>Linux CPU Scheduling</strong><span>CFS, EEVDF, diagrams and simulator</span></div></div><nav class="topnav" aria-label="Primary"><a href="index.html">Home</a><a href="article.html">Article</a><a href="cfs.html">CFS</a><a href="eevdf.html">EEVDF</a><a href="math.html">Math</a><a href="simulator.html">Simulator</a><a class="button primary" href="references.html">References</a></nav></div></div>
+<header class="page-header"><div class="page-header-shell hero-shell"><span class="eyebrow">References</span><h1>References, Bibliography and Scope Limits</h1><p class="lead">This page collects the references, bibliography and scope notes used throughout the article.</p><div class="page-links"><a class="button" href="index.html">Back to home</a><a class="button" href="simulator.html">Open simulator</a><a class="button" href="article.html">Full article</a></div></div></header><div class="article-shell"><div class="article-frame"><aside class="article-toc" aria-label="Article table of contents"><h3>On this page</h3><p>Use this guide to move between the major sections.</p><ul id="article-nav"></ul></aside><div class="article-main"><div class="article-intro"><small class="overline">Article</small><h2>Read the references and notes.</h2><p>This page collects the bibliography, source notes and scope limits used throughout the article.</p></div><div class="article-content"><div class="article-callout"><strong>Reading note.</strong> Use this page to trace claims back to the kernel documentation, kernel source and a small number of background references.</div><section id="references-and-scope" class="level1">
+<h1>References and Scope</h1>
+<section id="references" class="level2">
+<h2>References</h2>
+<ul>
+<li>[1] Linux kernel documentation, "CFS Scheduler."<br />
+<a
+href="https://docs.kernel.org/scheduler/sched-design-CFS.html">https://docs.kernel.org/scheduler/sched-design-CFS.html</a></li>
+<li>[2] Linux kernel documentation, "EEVDF Scheduler."<br />
+<a
+href="https://docs.kernel.org/scheduler/sched-eevdf.html">https://docs.kernel.org/scheduler/sched-eevdf.html</a></li>
+<li>[3] Linux kernel documentation, "Scheduler Nice Design."<br />
+<a
+href="https://docs.kernel.org/scheduler/sched-nice-design.html">https://docs.kernel.org/scheduler/sched-nice-design.html</a></li>
+<li>[4] Linux kernel source, current
+<code>kernel/sched/fair.c</code>.<br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c</a></li>
+<li>[5] Linux v6.5 source, historical pre-EEVDF
+<code>kernel/sched/fair.c</code>.<br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/v6.5/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/v6.5/kernel/sched/fair.c</a></li>
+<li>[6] Linux kernel documentation, "Deadline Task Scheduling."<br />
+<a
+href="https://docs.kernel.org/scheduler/sched-deadline.html">https://docs.kernel.org/scheduler/sched-deadline.html</a></li>
+<li>[7] Linux kernel source, current <code>kernel/sched/fair.c</code>,
+lag update machinery including <code>update_entity_lag()</code>.<br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c</a></li>
+<li>[8] Linux kernel source, current <code>kernel/sched/fair.c</code>,
+eligibility path including <code>entity_eligible()</code>.<br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c</a></li>
+<li>[9] Linux kernel source and historical source, deadline and
+slice/accounting paths.<br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c</a><br />
+<a
+href="https://raw.githubusercontent.com/torvalds/linux/v6.5/kernel/sched/fair.c">https://raw.githubusercontent.com/torvalds/linux/v6.5/kernel/sched/fair.c</a></li>
+<li>[10] Jonathan Corbet, "An EEVDF CPU scheduler for Linux." Secondary
+background reading.<br />
+<a
+href="https://lwn.net/Articles/925371/">https://lwn.net/Articles/925371/</a></li>
+<li>[11] Jonathan Corbet, "EEVDF scheduling comes to Linux." Secondary
+background reading.<br />
+<a
+href="https://lwn.net/Articles/969062/">https://lwn.net/Articles/969062/</a></li>
+</ul>
+</section>
+<section id="qualifications-and-scope-limits" class="level2">
+<h2>Qualifications and Scope Limits</h2>
+<ul>
+<li>Exact scenario timelines and millisecond outcomes are not treated
+here as factual measurements because no benchmark traces or direct
+experiments are provided.</li>
+<li>Current <code>fair.c</code> is already EEVDF-era code, so historical
+CFS implementation details are sourced from Linux v6.5 rather than
+projected backward from current code.</li>
+<li>The article makes no claim of a hard wall-clock latency guarantee
+for EEVDF under <code>SCHED_OTHER</code>; the strongest supported claim
+is relative ordering among eligible tasks plus a documented steady-state
+lag bound.</li>
+<li>The precise "delayed sleeper becomes positive-lag" behavior is
+implementation-sensitive because it depends on current delayed-dequeue
+feature handling in <code>fair.c</code>, not just on the abstract EEVDF
+documentation.</li>
+</ul>
+</section>
+</section>
+</div></div></div></div>
+<footer class="footer-shell"><div class="footer-grid"><div><h3>Linux CPU Scheduling</h3><p>An article about how Linux fair scheduling is best understood through CFS, EEVDF and the tradeoffs between fairness, latency and implementation detail.</p></div><div><h3>Pages</h3><ul><li><a href="index.html">Home</a></li><li><a href="article.html">Article</a></li><li><a href="simulator.html">Simulator</a></li><li><a href="references.html">References</a></li></ul></div><div><h3>Focus</h3><ul><li>CFS and virtual runtime</li><li>EEVDF, lag and deadlines</li><li>Comparative examples</li><li>Kernel code and references</li></ul></div></div></footer>
+</div>
+<script>
+const articleNav = document.getElementById('article-nav');
+if (articleNav) {
+  const articleContent = document.querySelector('.article-content');
+  const topSections = [...articleContent.querySelectorAll('section.level2')].map((section) => {
+    const heading = section.querySelector(':scope > h2');
+    if (!heading || !section.id) return null;
+    const subs = [...section.querySelectorAll(':scope > section.level3')].map((subsection) => {
+      const subheading = subsection.querySelector(':scope > h3');
+      if (!subheading || !subsection.id) return null;
+      return { section: subsection, heading: subheading, id: subsection.id };
+    }).filter(Boolean);
+    return { section, heading, id: section.id, subs };
+  }).filter(Boolean);
+
+  const groups = new Map();
+  topSections.forEach(({ heading, id, subs }) => {
+    const li = document.createElement('li');
+    li.className = 'toc-group';
+
+    const head = document.createElement('div');
+    head.className = 'toc-group-head';
+
+    const link = document.createElement('a');
+    link.href = `#${id}`;
+    link.textContent = heading.textContent.replace(/^\d+(\.\d+)*\s*/, '');
+    link.dataset.target = id;
+    link.className = 'toc-group-link';
+    head.appendChild(link);
+
+    if (subs.length) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'toc-toggle';
+      toggle.setAttribute('aria-label', `Toggle ${link.textContent} subsections`);
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = '›';
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        li.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(li.classList.contains('open')));
+      });
+      head.appendChild(toggle);
+    }
+
+    li.appendChild(head);
+
+    if (subs.length) {
+      const subnav = document.createElement('ul');
+      subnav.className = 'toc-subnav';
+      subs.forEach(({ heading: subheading, id: subId }) => {
+        const subLi = document.createElement('li');
+        const subLink = document.createElement('a');
+        subLink.href = `#${subId}`;
+        subLink.textContent = subheading.textContent.replace(/^\d+(\.\d+)*\s*/, '');
+        subLink.dataset.target = subId;
+        subLi.appendChild(subLink);
+        subnav.appendChild(subLi);
+      });
+      li.appendChild(subnav);
+    }
+
+    articleNav.appendChild(li);
+    groups.set(id, li);
+  });
+
+  const tocLinks = [...articleNav.querySelectorAll('a')];
+  const setOpenGroup = (sectionId) => {
+    topSections.forEach(({ id }) => {
+      const group = groups.get(id);
+      if (!group) return;
+      const shouldOpen = id === sectionId;
+      group.classList.toggle('open', shouldOpen);
+      const toggle = group.querySelector('.toc-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', String(shouldOpen));
+    });
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const link = articleNav.querySelector(`a[data-target="${entry.target.id}"]`);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        tocLinks.forEach((item) => item.classList.remove('active'));
+        link.classList.add('active');
+        const parentLevel2 = entry.target.classList.contains('level2')
+          ? entry.target.id
+          : entry.target.closest('section.level2')?.id;
+        if (parentLevel2) setOpenGroup(parentLevel2);
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+  topSections.forEach(({ section, subs }) => {
+    observer.observe(section);
+    subs.forEach(({ section: subsection }) => observer.observe(subsection));
+  });
+  if (topSections.length) setOpenGroup(topSections[0].id);
+}
+
+function decorateCitations(root) {
+  const skip = new Set(['SCRIPT', 'STYLE', 'CODE', 'PRE']);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !/\[(\d+(,\s*\d+)*)\]/.test(node.nodeValue)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      let parent = node.parentNode;
+      while (parent) {
+        if (skip.has(parent.nodeName) || (parent.classList && parent.classList.contains('cite'))) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        parent = parent.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const matches = [];
+  while (walker.nextNode()) {
+    matches.push(walker.currentNode);
+  }
+  const citePattern = /\[(\d+(?:,\s*\d+)*)\]/g;
+  matches.forEach((node) => {
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    const text = node.nodeValue;
+    let match;
+    while ((match = citePattern.exec(text)) !== null) {
+      const before = text.slice(lastIndex, match.index);
+      if (before) frag.appendChild(document.createTextNode(before));
+      const sup = document.createElement('sup');
+      sup.className = 'cite';
+      sup.textContent = `[${match[1]}]`;
+      frag.appendChild(sup);
+      lastIndex = match.index + match[0].length;
+    }
+    const after = text.slice(lastIndex);
+    if (after) frag.appendChild(document.createTextNode(after));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+decorateCitations(document.body);
+
+const COLORS = { A: "#b55c4a", B: "#6d9ab1", C: "#9ab96d", D: "#c28d56", idle: "#b9b0a2" };
+const PRESET = {
+  name: "Four-task weight mix",
+  description: "One CPU-bound task and three sleepers with different weights and request lengths compete on a single CPU.",
+  tasks: [
+    { name: "A", kind: "cpu", weight: 2048, requestSlice: 3.0, burst: 999, sleepFor: 0 },
+    { name: "B", kind: "bursty", weight: 1277, requestSlice: 2.4, burst: 2.4, sleepFor: 8 },
+    { name: "C", kind: "interactive", weight: 1024, requestSlice: 1.0, burst: 1.0, sleepFor: 6 },
+    { name: "D", kind: "service", weight: 820, requestSlice: 0.8, burst: 0.8, sleepFor: 11 }
+  ]
+};
+const simPanels = document.getElementById('sim-panels');
+if (simPanels) {
+  const state = {
+    timer: null,
+    mode: "single",
+    singleScheduler: "cfs",
+    tickSize: 0.5,
+    windowMs: 40,
+    sims: {}
+  };
+  const round2 = (v) => Math.round(v * 100) / 100;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const modeSelect = document.getElementById('sim-mode');
+  const schedulerSelect = document.getElementById('sim-single-scheduler');
+  const tickRange = document.getElementById('sim-tick');
+  const windowRange = document.getElementById('sim-window');
+  const playBtn = document.getElementById('sim-play');
+  const pauseBtn = document.getElementById('sim-pause');
+  const burstBtn = document.getElementById('sim-burst');
+  const wakeBtn = document.getElementById('sim-wake');
+  const stepBtn = document.getElementById('sim-step-btn');
+  const resetBtn = document.getElementById('sim-reset');
+  const tickLabel = document.getElementById('sim-tick-label');
+  const windowLabel = document.getElementById('sim-window-label');
+
+  function createTask(t) {
+    return {
+      ...t,
+      vruntime: 0,
+      exec: 0,
+      waitSinceWake: 0,
+      latencySamples: [],
+      wakeLatencyPending: false,
+      lag: 0,
+      deadline: t.requestSlice,
+      runnable: t.kind === "cpu",
+      sleepingUntil: 0,
+      remainingBurst: t.kind === "cpu" ? Infinity : t.burst,
+      currentSliceUsed: 0,
+      state: t.kind === "cpu" ? "runnable" : "sleeping"
+    };
+  }
+
+  function initSim(algorithm) {
+    return {
+      algorithm,
+      time: 0,
+      stepCount: 0,
+      minVruntime: 0,
+      current: null,
+      log: [],
+      timeline: [],
+      tasks: PRESET.tasks.map(createTask)
+    };
+  }
+
+  function resetSims() {
+    state.sims = {
+      cfs: initSim("cfs"),
+      eevdf: initSim("eevdf")
+    };
+    renderAll();
+  }
+
+  function avgVruntime(sim) {
+    const runnable = sim.tasks.filter((t) => t.runnable);
+    if (!runnable.length) return sim.minVruntime;
+    const totalWeight = runnable.reduce((sum, t) => sum + t.weight, 0);
+    return runnable.reduce((sum, t) => sum + t.vruntime * t.weight, 0) / totalWeight;
+  }
+
+  function updateEEVDFState(sim) {
+    const avg = avgVruntime(sim);
+    sim.tasks.forEach((t) => {
+      t.lag = avg - t.vruntime;
+      t.deadline = t.vruntime + t.requestSlice * (1024 / t.weight);
+    });
+    return avg;
+  }
+
+  function wakeSleepingTasks(sim) {
+    sim.tasks.forEach((t) => {
+      if (t.state === "sleeping" && sim.time >= t.sleepingUntil) {
+        t.state = "runnable";
+        t.runnable = true;
+        t.remainingBurst = t.kind === "cpu" ? Infinity : t.burst;
+        t.waitSinceWake = 0;
+        t.wakeLatencyPending = true;
+        if (sim.algorithm === "cfs") {
+          t.vruntime = Math.max(t.vruntime, sim.minVruntime - 2);
+        }
+        sim.log.unshift({ t: round2(sim.time), kind: "wake", msg: `${t.name} woke and became runnable.` });
+      }
+    });
+  }
+
+  function chooseCFS(sim) {
+    const runnable = sim.tasks.filter((t) => t.runnable);
+    if (!runnable.length) return null;
+    runnable.sort((a, b) => a.vruntime - b.vruntime || b.weight - a.weight || a.name.localeCompare(b.name));
+    return runnable[0];
+  }
+
+  function chooseEEVDF(sim) {
+    updateEEVDFState(sim);
+    const runnable = sim.tasks.filter((t) => t.runnable);
+    if (!runnable.length) return null;
+    let eligible = runnable.filter((t) => t.lag >= -0.0001);
+    if (!eligible.length) eligible = runnable;
+    eligible.sort((a, b) => a.deadline - b.deadline || a.vruntime - b.vruntime || a.name.localeCompare(b.name));
+    return eligible[0];
+  }
+
+  function pickTask(sim) {
+    return sim.algorithm === "cfs" ? chooseCFS(sim) : chooseEEVDF(sim);
+  }
+
+  function startRunningTask(sim, task) {
+    if (sim.current !== (task ? task.name : null)) {
+      sim.current = task ? task.name : null;
+      if (task) sim.log.unshift({ t: round2(sim.time), kind: "pick", msg: `${sim.algorithm.toUpperCase()} picked ${task.name}.` });
+    }
+    if (task && task.wakeLatencyPending) {
+      task.latencySamples.push(task.waitSinceWake);
+      task.wakeLatencyPending = false;
+    }
+  }
+
+  function recordSegment(sim, label, dt) {
+    if (dt <= 0) return;
+    const prev = sim.timeline[sim.timeline.length - 1];
+    if (prev && prev.label === label) prev.duration += dt;
+    else sim.timeline.push({ label, start: sim.time, duration: dt });
+    const cutoff = sim.time + dt - state.windowMs;
+    while (sim.timeline.length && sim.timeline[0].start + sim.timeline[0].duration < cutoff) {
+      sim.timeline.shift();
+    }
+  }
+
+  function advanceTask(sim, task, dt) {
+    task.exec += dt;
+    task.currentSliceUsed += dt;
+    task.vruntime += dt * (1024 / task.weight);
+    sim.minVruntime = Math.max(sim.minVruntime, Math.min(...sim.tasks.map((x) => x.vruntime)));
+    if (task.kind !== "cpu") {
+      task.remainingBurst -= dt;
+      if (task.remainingBurst <= 0.0001) {
+        task.state = "sleeping";
+        task.runnable = false;
+        task.sleepingUntil = sim.time + dt + task.sleepFor;
+        task.currentSliceUsed = 0;
+        sim.log.unshift({ t: round2(sim.time + dt), kind: "sleep", msg: `${task.name} finished its burst and went to sleep.` });
+        sim.current = null;
+      }
+    }
+  }
+
+  function stepSim(sim, dt) {
+    wakeSleepingTasks(sim);
+    sim.tasks.forEach((t) => {
+      if (t.runnable && t.wakeLatencyPending) t.waitSinceWake += dt;
+    });
+    const task = pickTask(sim);
+    if (!task) {
+      recordSegment(sim, "idle", dt);
+      sim.time += dt;
+      sim.stepCount++;
+      return;
+    }
+    startRunningTask(sim, task);
+    recordSegment(sim, task.name, dt);
+    advanceTask(sim, task, dt);
+    sim.time += dt;
+    sim.stepCount++;
+    if (sim.algorithm === "eevdf") updateEEVDFState(sim);
+    sim.log = sim.log.slice(0, 60);
+  }
+
+  function avgLatency(task) {
+    return task.latencySamples.length ? task.latencySamples.reduce((a, b) => a + b, 0) / task.latencySamples.length : 0;
+  }
+
+  function schedulerShare(task, sim) {
+    return sim.time > 0 ? (task.exec / sim.time) * 100 : 0;
+  }
+
+  function desiredShare(task, sim) {
+    return (task.weight / sim.tasks.reduce((sum, t) => sum + t.weight, 0)) * 100;
+  }
+
+  function decisionSummary(sim) {
+    if (!sim.current) return "No runnable task is available, so the CPU is idle.";
+    const task = sim.tasks.find((t) => t.name === sim.current);
+    if (sim.algorithm === "cfs") {
+      return `${task.name} is running because it has the smallest vruntime among the runnable tasks.`;
+    }
+    return `${task.name} is running because it is eligible and has the earliest virtual deadline in the eligible set.`;
+  }
+
+  function buildPanel(sim, compact = false) {
+    const panel = document.createElement("div");
+    panel.className = `sim-panel${compact ? " compact" : ""}`;
+    const avg = sim.algorithm === "eevdf" ? updateEEVDFState(sim) : avgVruntime(sim);
+    const currentTask = sim.current ? sim.tasks.find((t) => t.name === sim.current) : null;
+    const eligibleCount = sim.algorithm === "eevdf" ? sim.tasks.filter((t) => t.runnable && t.lag >= -0.0001).length : sim.tasks.filter((t) => t.runnable).length;
+    panel.innerHTML = `
+      <h3 style="margin-top:0">${sim.algorithm === "cfs" ? "CFS" : "EEVDF"} simulation</h3>
+      <div class="stats-grid">
+        <div class="stat"><strong>${round2(sim.time)} ms</strong><span>simulated time</span></div>
+        <div class="stat"><strong>${sim.current || "idle"}</strong><span>currently running</span></div>
+        <div class="stat"><strong>${round2(avg)}</strong><span>${sim.algorithm === "eevdf" ? "avg vruntime" : "min vruntime context"}</span></div>
+        <div class="stat"><strong>${eligibleCount}</strong><span>${sim.algorithm === "eevdf" ? "eligible tasks" : "runnable tasks"}</span></div>
+      </div>
+      <div class="task-grid"></div>
+      <div class="timeline-wrap">
+        <div class="timeline"></div>
+        <div class="legend"></div>
+      </div>
+      <div class="log"></div>
+    `;
+    const grid = panel.querySelector(".task-grid");
+    sim.tasks.forEach((task) => {
+      const share = schedulerShare(task, sim);
+      const desired = desiredShare(task, sim);
+      const card = document.createElement("div");
+      card.className = `task-card ${currentTask && currentTask.name === task.name ? "active" : ""} ${task.state === "sleeping" ? "sleeping" : ""}`;
+      const meterWidth = clamp((share / Math.max(desired, 1)) * 100, 0, 140);
+      const eevdfLine = sim.algorithm === "eevdf" ? ` · lag: ${round2(task.lag)} · VD: ${round2(task.deadline)}` : "";
+      const eligibilityLine = sim.algorithm === "eevdf" ? ` · eligibility: ${task.runnable ? (task.lag >= -0.0001 ? "eligible" : "ineligible") : "sleeping"}` : "";
+      card.innerHTML = `
+        <h4>${task.name} <span class="task-meta">· ${task.kind}</span></h4>
+        <div class="task-meta">state: ${task.state} · weight: ${task.weight} · request: ${task.requestSlice} ms</div>
+        <div class="task-meta">vruntime: ${round2(task.vruntime)}${eevdfLine}${eligibilityLine}</div>
+        <div class="task-meta">CPU share: ${share.toFixed(1)}% (target ${desired.toFixed(1)}%) · avg wake latency: ${avgLatency(task).toFixed(2)} ms</div>
+        <div class="meter"><div style="width:${meterWidth}%;background:${COLORS[task.name]};"></div></div>
+      `;
+      grid.appendChild(card);
+    });
+
+    const timeline = panel.querySelector(".timeline");
+    const totalWindow = state.windowMs;
+    timeline.innerHTML = `<div class="timeline-caption">CPU timeline (last ${totalWindow} ms)</div>`;
+    const row = document.createElement("div");
+    row.className = "timeline-row";
+    row.innerHTML = `<div class="task-meta">CPU 0</div><div class="timeline-track"></div>`;
+    timeline.appendChild(row);
+    const track = row.querySelector(".timeline-track");
+    const startWindow = Math.max(0, sim.time - totalWindow);
+    sim.timeline.forEach((seg) => {
+      const segStart = Math.max(seg.start, startWindow);
+      const segEnd = seg.start + seg.duration;
+      const left = ((segStart - startWindow) / totalWindow) * 100;
+      const width = ((segEnd - segStart) / totalWindow) * 100;
+      if (width <= 0) return;
+      const div = document.createElement("div");
+      div.className = "seg";
+      div.style.left = `${left}%`;
+      div.style.width = `${width}%`;
+      div.style.background = COLORS[seg.label] || COLORS.idle;
+      div.textContent = width > 5 ? seg.label : "";
+      track.appendChild(div);
+    });
+    const axis = document.createElement("div");
+    axis.className = "timeline-row";
+    axis.innerHTML = `<div></div><div style="display:flex;justify-content:space-between;color:var(--muted);font-size:.82rem"><span>${round2(startWindow)} ms</span><span>${round2(sim.time)} ms</span></div>`;
+    timeline.appendChild(axis);
+    const legend = panel.querySelector(".legend");
+    ["A", "B", "C", "D", "idle"].forEach((label) => {
+      const span = document.createElement("span");
+      span.innerHTML = `<i class="swatch" style="background:${COLORS[label]}"></i>${label}`;
+      legend.appendChild(span);
+    });
+    const log = panel.querySelector(".log");
+    const intro = `<div class="log-entry"><span class="kind">why</span> ${decisionSummary(sim)}</div>`;
+    const entries = sim.log.map((e) => `<div class="log-entry"><span class="t">[${e.t} ms]</span> <span class="kind">${e.kind}</span> ${e.msg}</div>`).join("");
+    log.innerHTML = intro + (entries || '<div class="task-meta">No events yet. Click Step or Run.</div>');
+    return panel;
+  }
+
+  function renderAll() {
+    const host = simPanels;
+    host.innerHTML = "";
+    tickLabel.textContent = `${state.tickSize} ms per step`;
+    windowLabel.textContent = `Show the last ${state.windowMs} ms`;
+    schedulerSelect.disabled = state.mode !== "single";
+    if (state.mode === "single") {
+      host.appendChild(buildPanel(state.sims[state.singleScheduler]));
+    } else {
+      const grid = document.createElement("div");
+      grid.className = "sim-compare-grid";
+      grid.appendChild(buildPanel(state.sims.cfs, true));
+      grid.appendChild(buildPanel(state.sims.eevdf, true));
+      host.appendChild(grid);
+    }
+  }
+
+  function doStep(count = 1) {
+    for (let i = 0; i < count; i++) {
+      if (state.mode === "single") stepSim(state.sims[state.singleScheduler], state.tickSize);
+      else {
+        stepSim(state.sims.cfs, state.tickSize);
+        stepSim(state.sims.eevdf, state.tickSize);
+      }
+    }
+    renderAll();
+  }
+
+  function stopPlayback() {
+    if (!state.timer) return;
+    clearInterval(state.timer);
+    state.timer = null;
+    playBtn.textContent = "Run";
+  }
+
+  function startRun() {
+    if (state.timer) return;
+    playBtn.textContent = "Running";
+    state.timer = setInterval(() => doStep(1), 180);
+  }
+
+  function forceWakeInteractive() {
+    const apply = (sim) => {
+      const task = sim.tasks.find((t) => t.kind === "interactive");
+      if (!task) return;
+      task.state = "runnable";
+      task.runnable = true;
+      task.sleepingUntil = sim.time;
+      task.remainingBurst = task.burst;
+      task.waitSinceWake = 0;
+      task.wakeLatencyPending = true;
+      sim.log.unshift({ t: round2(sim.time), kind: "wake", msg: `Forced wake for ${task.name}.` });
+    };
+    if (state.mode === "single") apply(state.sims[state.singleScheduler]);
+    else {
+      apply(state.sims.cfs);
+      apply(state.sims.eevdf);
+    }
+    renderAll();
+  }
+
+  modeSelect.addEventListener("change", (e) => {
+    state.mode = e.target.value;
+    stopPlayback();
+    renderAll();
+  });
+  schedulerSelect.addEventListener("change", (e) => {
+    state.singleScheduler = e.target.value;
+    renderAll();
+  });
+  tickRange.addEventListener("input", (e) => {
+    state.tickSize = parseFloat(e.target.value);
+    renderAll();
+  });
+  windowRange.addEventListener("input", (e) => {
+    state.windowMs = parseFloat(e.target.value);
+    renderAll();
+  });
+  resetBtn.addEventListener("click", () => {
+    stopPlayback();
+    resetSims();
+  });
+  stepBtn.addEventListener("click", () => {
+    stopPlayback();
+    doStep(1);
+  });
+  playBtn.addEventListener("click", () => {
+    if (state.timer) stopPlayback();
+    else startRun();
+  });
+  pauseBtn.addEventListener("click", stopPlayback);
+  burstBtn.addEventListener("click", () => {
+    stopPlayback();
+    doStep(20);
+  });
+  wakeBtn.addEventListener("click", () => {
+    stopPlayback();
+    forceWakeInteractive();
+  });
+
+  resetSims();
+}
+</script>
+</body>
+</html>
