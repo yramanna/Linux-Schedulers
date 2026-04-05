@@ -4,7 +4,7 @@ This repository holds the writing and generated pages for a blog project on Linu
 
 The main goal is to explain the shift from classic CFS to EEVDF in a way that is accurate, readable and useful to someone who wants to understand what the kernel is actually doing.
 
-## What's in the repo
+## Content
 
 - `MASTER_CONTENT.md`
   - This is the main article source.
@@ -15,7 +15,7 @@ The main goal is to explain the shift from classic CFS to EEVDF in a way that is
   - Start with `site/output/index.html`.
   - The focused pages (`cfs.html`, `eevdf.html`, `math.html`, `references.html`, `simulator.html`) are all built from the same source material.
 
-## What the project is trying to do
+## Intent
 
 The project tries to do a few things at once:
 
@@ -24,7 +24,7 @@ The project tries to do a few things at once:
 - separate what the kernel documentation actually supports from what is just teaching intuition
 - provide both a long-form article and a more visual blog presentation with diagrams and a simulator
 
-## Where to start
+## Directions
 
 - If you want the writing source, start with `MASTER_CONTENT.md`.
 - If you want the generated blog, start with `site/output/index.html`.
