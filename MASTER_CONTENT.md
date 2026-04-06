@@ -850,12 +850,12 @@ The article's implementation claim is therefore balanced:
 - [6] Linux kernel documentation, "Deadline Task Scheduling."  
   <https://docs.kernel.org/scheduler/sched-deadline.html>
 - [7] Linux kernel source, current `kernel/sched/fair.c`, lag update machinery including `update_entity_lag()`.  
-  <https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c>
+  <https://github.com/torvalds/linux/blob/master/kernel/sched/fair.c#L3487>
 - [8] Linux kernel source, current `kernel/sched/fair.c`, eligibility path including `entity_eligible()`.  
-  <https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c>
+  <https://github.com/torvalds/linux/blob/master/kernel/sched/fair.c#L3561>
 - [9] Linux kernel source and historical source, deadline and slice/accounting paths.  
-  <https://raw.githubusercontent.com/torvalds/linux/master/kernel/sched/fair.c>  
-  <https://raw.githubusercontent.com/torvalds/linux/v6.5/kernel/sched/fair.c>
+  <https://github.com/torvalds/linux/blob/master/kernel/sched/fair.c#L3787>  
+  <https://github.com/torvalds/linux/blob/v6.5/kernel/sched/fair.c#L3451>
 - [10] Jonathan Corbet, "An EEVDF CPU scheduler for Linux." Secondary background reading.  
   <https://lwn.net/Articles/925371/>
 - [11] Jonathan Corbet, "EEVDF scheduling comes to Linux." Secondary background reading.  
